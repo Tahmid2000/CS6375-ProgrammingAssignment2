@@ -71,8 +71,7 @@ def entropy(y, weights):
     for key in part:
         vCount = len(part.get(key))
         vProb = vCount/totalCount
-        adjusted_weights = sum(weights[np.array(part.get(key))]) / sum(weights)
-        Hz += adjusted_weights * -vProb * math.log(vProb, 2)
+        Hz += -vProb * math.log(vProb, 2)
     return Hz
 
 
@@ -88,12 +87,10 @@ def mutual_information(x, y, weights):
     # INSERT YOUR CODE HERE
     Hy = entropy(y, weights)
     xVal, xCounts = np.unique(x, return_counts=True)
-
     Hyx = 0.0
     for i in range(len(xVal)):
         prob = xCounts[i]/len(x)
-        Hyx += prob*entropy(y[x == xVal[i]], weights)
-
+        Hyx += sum(weights[x == xVal[i]])*prob*entropy(y[x == xVal[i]], weights)
     return Hy-Hyx
 
 
@@ -173,10 +170,12 @@ def id3(x, y, attribute_value_pairs=None, depth=0, max_depth=5, weights=None):
     xFalse = x[(x[:, maxVariable[0]] != maxVariable[1])]
     yTrue = y[(x[:, maxVariable[0]] == maxVariable[1])]
     yFalse = y[(x[:, maxVariable[0]] != maxVariable[1])]
+    weightsTrue = weights[(x[:, maxVariable[0]] == maxVariable[1])]
+    weightsFalse = weights[(x[:, maxVariable[0]] != maxVariable[1])]
     node[(maxVariable[0], maxVariable[1], False)] = id3(xFalse, yFalse,
-                                                        attribute_value_pairs=attribute_value_pairs, depth=depth+1, max_depth=max_depth, weights=weights)
+                                                        attribute_value_pairs=attribute_value_pairs, depth=depth+1, max_depth=max_depth, weights=weightsFalse)
     node[(maxVariable[0], maxVariable[1], True)] = id3(xTrue, yTrue,
-                                                       attribute_value_pairs=attribute_value_pairs, depth=depth+1, max_depth=max_depth, weights=weights)
+                                                       attribute_value_pairs=attribute_value_pairs, depth=depth+1, max_depth=max_depth, weights=weightsTrue)
 
     return node
 
@@ -198,7 +197,7 @@ def bagging(x, y, max_depth, num_trees):
 
 def boosting(x, y, max_depth, num_stumps):
     hypotheses = []
-    d = [(1/len(x)) for _ in x]  # sample weights
+    d = np.array([(1/len(x)) for _ in x])  # sample weights
     for _ in range(num_stumps):
         tree = id3(x, y, max_depth=max_depth, weights=d)
 
@@ -206,16 +205,13 @@ def boosting(x, y, max_depth, num_stumps):
         e = compute_error_weights(y, y_pred, d)
 
         alpha_i = 0
-        if e > 0 and e < 1:
-            alpha_i = .5 * math.log((1 - e)/e)
-
-        temp_sum = 0
+        # if e > 0 and e < 1:
+        alpha_i = .5 * math.log((1 - e)/e)
         for di in range(len(d)):  # update weights
-            d[di] *= math.exp(alpha_i * 1 if y_pred[di] != y[di] else -1)
-            temp_sum += d[di]
+            d[di] = d[di] * math.exp(alpha_i * 1 if y_pred[di] != y[di] else -1)
+        total = sum(d)
         for di in range(len(d)):  # normalize weights
-            d[di] /= temp_sum
-
+            d[di] /= total
         hypotheses.append((alpha_i, tree))
     return hypotheses
 
@@ -223,7 +219,7 @@ def boosting(x, y, max_depth, num_stumps):
 def compute_error_weights(y_true, y_pred, weights):
     e = 0
     for i in range(len(y_true)):
-        e += 0 if y_true[i] == y_pred[i] else weights[i]
+        e += weights[i] if y_true[i] != y_pred[i] else 0
     return e
 
 
@@ -419,6 +415,6 @@ def questionC():
 
 if __name__ == '__main__':
     # questionA()
-    # questionB()
-    questionC()
+    questionB()
+    # questionC()
     pass
