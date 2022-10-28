@@ -147,7 +147,7 @@ def id3(x, y, attribute_value_pairs=None, depth=0, max_depth=5, weights=None):
                 attribute_value_pairs.append((i, uniqueVals[j]))
 
     if weights is None:
-        weights = [(1/len(x)) for _ in x]
+        weights = np.array([(1/len(x)) for _ in x])
 
     if len(attribute_value_pairs) == 0 or depth == max_depth:
         # Finds all unique elements and their positions
@@ -204,9 +204,9 @@ def boosting(x, y, max_depth, num_stumps):
         y_pred = [predict_example_learner(xi, tree) for xi in x]
         e = compute_error_weights(y, y_pred, d)
 
-        alpha_i = 0
-        # if e > 0 and e < 1:
-        alpha_i = .5 * math.log((1 - e)/e)
+        alpha_i = -1
+        if e > 0 and e < 1:
+            alpha_i = .5 * math.log((1 - e)/e)
         for di in range(len(d)):  # update weights
             d[di] = d[di] * math.exp(alpha_i * 1 if y_pred[di] != y[di] else -1)
         total = sum(d)
@@ -366,7 +366,7 @@ def questionB():
     confusion_matrix(boosting(Xtrn, ytrn, 1, 20), Xtst, ytst)
     confusion_matrix(boosting(Xtrn, ytrn, 1, 40), Xtst, ytst)
     confusion_matrix(boosting(Xtrn, ytrn, 2, 20), Xtst, ytst)
-    confusion_matrix(boosting(Xtrn, ytrn, 2, 40), Xtst, ytst)
+    confusion_matrix(boosting(Xtrn, ytrn, 10, 40), Xtst, ytst)
 
 
 def scikit_bagging(x, y, Xtst, max_depth, num_trees):
@@ -414,7 +414,7 @@ def questionC():
 
 
 if __name__ == '__main__':
-    # questionA()
+    questionA()
     questionB()
-    # questionC()
+    questionC()
     pass
