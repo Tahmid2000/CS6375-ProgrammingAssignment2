@@ -29,11 +29,11 @@
 import numpy as np
 import math
 import matplotlib.pyplot as plt
-from sklearn import tree
+from sklearn.tree import DecisionTreeClassifier
 import graphviz
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import plot_confusion_matrix
 import random
-from sklearn import preprocessing
+from sklearn.ensemble import BaggingClassifier, AdaBoostClassifier
 
 
 def partition(x):
@@ -180,19 +180,25 @@ def id3(x, y, attribute_value_pairs=None, depth=0, max_depth=5, weights=None):
 
     return node
 
+
 def bagging(x, y, max_depth, num_trees):
     hypotheses = []
     alpha = -1
     for _ in range(0, num_trees):
-        idx = np.random.choice(np.arange(len(x)), int(.63*len(x)), replace=False) # randomly select 63% of data
+        # randomly select 63% of data
+        idx = np.random.choice(
+            np.arange(len(x)), int(.63*len(x)), replace=False)
         x_sample = x[idx]
         y_sample = y[idx]
-        hypotheses.append((alpha, id3(x_sample, y_sample, max_depth=max_depth))) # generate decision tree learned by this portion of data
+        # generate decision tree learned by this portion of data
+        hypotheses.append(
+            (alpha, id3(x_sample, y_sample, max_depth=max_depth)))
     return hypotheses
+
 
 def boosting(x, y, max_depth, num_stumps):
     hypotheses = []
-    d = [(1/len(x)) for _ in x] # sample weights
+    d = [(1/len(x)) for _ in x]  # sample weights
     for _ in range(num_stumps):
         tree = id3(x, y, max_depth=max_depth, weights=d)
 
@@ -204,10 +210,10 @@ def boosting(x, y, max_depth, num_stumps):
             alpha_i = .5 * math.log((1 - e)/e)
 
         temp_sum = 0
-        for di in range(len(d)): # update weights
+        for di in range(len(d)):  # update weights
             d[di] *= math.exp(alpha_i * 1 if y_pred[di] != y[di] else -1)
             temp_sum += d[di]
-        for di in range(len(d)): # normalize weights
+        for di in range(len(d)):  # normalize weights
             d[di] /= temp_sum
 
         hypotheses.append((alpha_i, tree))
@@ -219,6 +225,7 @@ def compute_error_weights(y_true, y_pred, weights):
     for i in range(len(y_true)):
         e += 0 if y_true[i] == y_pred[i] else weights[i]
     return e
+
 
 def predict_example_learner(x, tree):
     """
@@ -233,9 +240,11 @@ def predict_example_learner(x, tree):
         return tree
     for key in tree.keys():
         present = x[key[0]] == key[1]
-        predicted_label = predict_example_learner(x, tree[(key[0], key[1], present)])
+        predicted_label = predict_example_learner(
+            x, tree[(key[0], key[1], present)])
         break
     return predicted_label
+
 
 def predict_example(x, h_ens):
     '''
@@ -251,8 +260,7 @@ def predict_example(x, h_ens):
         return 1
     elif weighted_vote < 0:
         return 0
-    return random.randint(0,1)
-    
+    return random.randint(0, 1)
 
 
 def compute_error(y_true, y_pred):
@@ -295,12 +303,15 @@ def visualize(tree, depth=0):
             print('+-- [LABEL = {0}]'.format(sub_trees))
 
 
-def confusion_matrix(h_ens, Xtst, ytst):
+def confusion_matrix(h_ens, Xtst, ytst, scikit=False):
     tp = 0
     fp = 0
     tn = 0
     fn = 0
-    y_pred = [predict_example(x, h_ens) for x in Xtst]
+    if not scikit:
+        y_pred = [predict_example(x, h_ens) for x in Xtst]
+    else:
+        y_pred = h_ens
     for i in range(len(ytst)):
         if ytst[i] == 1 and y_pred[i] == 1:
             tp += 1
@@ -325,6 +336,7 @@ def confusion_matrix(h_ens, Xtst, ytst):
     print('               |          |          |')
     print('               |----------|----------|')
 
+
 def questionA():
     # Load the training data
     M = np.genfromtxt('./mushroom.train', missing_values=0,
@@ -341,6 +353,7 @@ def questionA():
     confusion_matrix(bagging(Xtrn, ytrn, 3, 20), Xtst, ytst)
     confusion_matrix(bagging(Xtrn, ytrn, 5, 10), Xtst, ytst)
     confusion_matrix(bagging(Xtrn, ytrn, 5, 20), Xtst, ytst)
+
 
 def questionB():
     # Load the training data
@@ -360,7 +373,52 @@ def questionB():
     confusion_matrix(boosting(Xtrn, ytrn, 2, 40), Xtst, ytst)
 
 
+def scikit_bagging(x, y, Xtst, max_depth, num_trees):
+    bg = BaggingClassifier(DecisionTreeClassifier(
+        max_depth=max_depth), n_estimators=num_trees)
+    bg.fit(x, y)
+    y_pred = bg.predict(Xtst)
+    return y_pred
+
+
+def scikit_boosting(x, y, Xtst, max_depth, num_stumps):
+    ada = AdaBoostClassifier(DecisionTreeClassifier(max_depth=max_depth),
+                             n_estimators=num_stumps)
+    ada.fit(x, y)
+    y_pred = ada.predict(Xtst)
+    return y_pred
+
+
+def questionC():
+    # Load the training data
+    M = np.genfromtxt('./mushroom.train', missing_values=0,
+                      skip_header=0, delimiter=',', dtype=int)
+    ytrn = M[:, 0]
+    Xtrn = M[:, 1:]
+
+    # Load the test data
+    M = np.genfromtxt('./mushroom.test', missing_values=0,
+                      skip_header=0, delimiter=',', dtype=int)
+    ytst = M[:, 0]
+    Xtst = M[:, 1:]
+
+    confusion_matrix(scikit_bagging(Xtrn, ytrn, Xtst, 3, 10), Xtst, ytst, True)
+    confusion_matrix(scikit_bagging(Xtrn, ytrn, Xtst, 3, 20), Xtst, ytst, True)
+    confusion_matrix(scikit_bagging(Xtrn, ytrn, Xtst, 5, 10), Xtst, ytst, True)
+    confusion_matrix(scikit_bagging(Xtrn, ytrn, Xtst, 5, 20), Xtst, ytst, True)
+
+    confusion_matrix(scikit_boosting(
+        Xtrn, ytrn, Xtst, 1, 20), Xtst, ytst, True)
+    confusion_matrix(scikit_boosting(
+        Xtrn, ytrn, Xtst, 1, 40), Xtst, ytst, True)
+    confusion_matrix(scikit_boosting(
+        Xtrn, ytrn, Xtst, 2, 20), Xtst, ytst, True)
+    confusion_matrix(scikit_boosting(
+        Xtrn, ytrn, Xtst, 2, 40), Xtst, ytst, True)
+
+
 if __name__ == '__main__':
-    questionA()
-    questionB()
+    # questionA()
+    # questionB()
+    questionC()
     pass
